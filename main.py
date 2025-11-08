@@ -27,10 +27,14 @@ def main():
         with open("data/Machine_learning.txt", "r") as file:
                 text = file.read()
         rag.chunk_documents(documents=[text])
-        print("Documents chunked")
+        print("Documents chunked, added and embedded\n")
         query = "What is Machine Learning?"
         results = rag.retrieve(query=query)
-        print(results)
+        for k,v in results.items():
+                for val in v:
+                        print(val)
+                print("="*100)
+                print("\n")
         response = generate_response(query=query,context=results["documents"][0])
         print(response)
 
