@@ -1,8 +1,10 @@
-from groq import Groq
 from chromadb.config import Settings
 import chromadb
-from typing import List, Optional
+from typing import List, Optional, Dict
+import faiss
+import numpy as np
 from sentence_transformers import SentenceTransformer
+
 
 
 SOURCE_FILE = "data/test.txt"
@@ -16,32 +18,14 @@ DOCUMENTS = [
 ]
 
 class RAG:
-        def __init__(self, api_key: str, model: str = "llama-3.3-70b-versatile", embedding_model: str = "BAAI/bge-large-en-v1.5"):
-                self.api_key = api_key
-                self.model = model
-                self.llm_client = Groq(api_key=api_key)
-                # BAAI/bge-large-en-v1.5 produces 1024-dimensional embeddings
+        def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
                 self.embedding_model = SentenceTransformer(embedding_model)
-                print(f"Using embedding model: {embedding_model} (1024 dimensions)")
+                self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
+                self.index = None
 
-                # Initialize ChromaDB with persistence and HNSW index
-                self.chroma_client = chromadb.PersistentClient(
-                    path="./rag",
-                    settings=Settings(
-                        anonymized_telemetry=False,
-                        allow_reset=True
-                    )
-                )
-                # Get or create collection with HNSW index (default in ChromaDB)
-                try:
-                        self.collection = self.chroma_client.get_collection(COLLECTION_NAME)
-                        print(f"Loaded existing collection: {COLLECTION_NAME} with HNSW index")
-                except:
-                        self.collection = self.chroma_client.create_collection(
-                                name=COLLECTION_NAME,
-                                metadata={"description": "RAG document store"}
-                        )
-                        print(f"Created new collection: {COLLECTION_NAME} with HNSW index")
+                # Inicijalizacija ChromaDB with persistence
+                self.chroma = chromadb.PersistentClient(path="./rag")
+                self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
 
                 self.add_documents(documents=DOCUMENTS)
 
@@ -67,6 +51,25 @@ class RAG:
                 if results['embeddings'] is None or len(results['embeddings']) == 0:
                         print("No embeddings in ChromaDB yet. FAISS index will be built after adding documents.")
                         return
+                # Convert to numpy array
+                embeddings = np.array(results['embeddings']).astype('float32')
+                
+                # Create FAISS index
+                self.index = faiss.IndexFlatIP(self.embedding_dim)
+                self.index.add(embeddings)
+                self.doc_id_mapping = results['ids']
+                print(f"FAISS index built with {len(embeddings)} vectors")
+
+        def retrieve(self, query: str, top_k: int = 3) -> Dict:
+                query_emb = self.embedding_model.encode([query]).astype('float32')
+                distances, indices = self.index.search(query_emb, top_k)
+                doc_ids = [self.doc_id_mapping[i] for i in indices[0]]
+                chroma_results = self.collection.get(ids=doc_ids, include=['documents'])
+                return {
+                        "documents": chroma_results['documents'],
+                        "distances": distances[0].tolist(),
+                        "doc_ids": doc_ids,
+                }
         
 
             
