@@ -1,8 +1,0 @@
-contextily
-geopy
-matplotlib
-networkx
-osmnx
-scikit-learn 
-openpyxl
-duckdb
