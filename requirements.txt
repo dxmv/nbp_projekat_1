@@ -5,3 +5,4 @@ networkx
 osmnx
 scikit-learn 
 openpyxl
+duckdb
