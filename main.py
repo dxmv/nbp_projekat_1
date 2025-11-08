@@ -1,7 +1,7 @@
-from disable_warnings import disable_warning_messages
-disable_warning_messages()
+# from disable_warnings import disable_warning_messages
+# disable_warning_messages()
 import os
-from rag import RAG
+from rag import CrossRankingRAG
 from groq import Groq
 
 API_KEY = os.environ.get("GROQ_API_KEY")
@@ -22,10 +22,16 @@ def generate_response(query: str,context: str) -> str:
         return response.choices[0].message.content
 
 def main():
-        rag = RAG()
-        results = rag.retrieve(query="What is Machine Learning?")
+        print("Chunking documents...")
+        rag = CrossRankingRAG()
+        with open("data/Machine_learning.txt", "r") as file:
+                text = file.read()
+        rag.chunk_documents(documents=[text])
+        print("Documents chunked")
+        query = "What is Machine Learning?"
+        results = rag.retrieve(query=query)
         print(results)
-        response = generate_response(query="What is machine learning?",context=results["documents"][0])
+        response = generate_response(query=query,context=results["documents"][0])
         print(response)
 
 if __name__ == "__main__":

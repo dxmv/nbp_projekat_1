@@ -5,19 +5,10 @@ import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-
-
-SOURCE_FILE = "data/test.txt"
 COLLECTION_NAME = "rag"
-DOCUMENTS = [
-    "Python is a high-level programming language known for its simplicity and readability.",
-    "Machine learning is a subset of artificial intelligence that enables systems to learn from data.",
-    "Natural Language Processing (NLP) helps computers understand and process human language.",
-    "Deep learning uses neural networks with multiple layers to process complex patterns.",
-    "RAG systems combine retrieval mechanisms with generative AI to provide accurate answers."
-]
 
-class RAG:
+
+class CrossRankingRAG:
         def __init__(self, embedding_model: str = "all-MiniLM-L6-v2"):
                 self.embedding_model = SentenceTransformer(embedding_model)
                 self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
@@ -26,8 +17,6 @@ class RAG:
                 # Inicijalizacija ChromaDB with persistence
                 self.chroma = chromadb.PersistentClient(path="./rag")
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
-
-                self.add_documents(documents=DOCUMENTS)
 
         def add_documents(self, documents: List[str], ids: Optional[List[str]] = None):
                 # Generisanje ID-jeva ako nisu dostavljeni
@@ -55,7 +44,7 @@ class RAG:
                 embeddings = np.array(results['embeddings']).astype('float32')
                 
                 # Create FAISS index
-                self.index = faiss.IndexFlatIP(self.embedding_dim)
+                self.index = faiss.IndexFlatL2(self.embedding_dim)
                 self.index.add(embeddings)
                 self.doc_id_mapping = results['ids']
                 print(f"FAISS index built with {len(embeddings)} vectors")
@@ -70,6 +59,8 @@ class RAG:
                         "distances": distances[0].tolist(),
                         "doc_ids": doc_ids,
                 }
-        
+
+        def chunk_documents(self, documents: List[str], chunk_size: int = 512) -> List[str]:
+                self.add_documents(documents=documents[0].split("\n"))
 
             
