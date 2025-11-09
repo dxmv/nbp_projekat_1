@@ -2,6 +2,7 @@
 # disable_warning_messages()
 import os
 from rag import CrossRankingRAG
+from hnsw import HnswRAG
 from groq import Groq
 
 API_KEY = os.environ.get("GROQ_API_KEY")
@@ -23,7 +24,7 @@ def generate_response(query: str,context: str) -> str:
 
 def main():
         print("Chunking documents...")
-        rag = CrossRankingRAG()
+        rag = HnswRAG()
         with open("data/Machine_learning.txt", "r") as file:
                 text = file.read()
         rag.chunk_documents(documents=[text])
