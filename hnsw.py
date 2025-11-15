@@ -34,17 +34,30 @@ class HnswRAG:
                 if ids is None:
                         ids = [str(i) for i in range(len(documents))]
                 
-                # Generisanje embeddinga
-                embeddings = self.embedding_model.encode(documents).tolist()
-
-                # Dodavanje u ChromaDB sa metadatama
-                if metadatas:
-                        self.collection.add(documents=documents, embeddings=embeddings, 
-                                          ids=ids, metadatas=metadatas)
-                else:
-                        self.collection.add(documents=documents, embeddings=embeddings, ids=ids)
+                # ChromaDB batch size limit
+                batch_size = 5000
+                total_docs = len(documents)
                 
-                print(f"Added {len(documents)} documents to ChromaDB")
+                # Process in batches
+                for i in range(0, total_docs, batch_size):
+                        end_idx = min(i + batch_size, total_docs)
+                        batch_docs = documents[i:end_idx]
+                        batch_ids = ids[i:end_idx]
+                        batch_metadatas = metadatas[i:end_idx] if metadatas else None
+                        
+                        # Generisanje embeddinga za batch
+                        embeddings = self.embedding_model.encode(batch_docs).tolist()
+                        
+                        # Dodavanje u ChromaDB sa metadatama
+                        if batch_metadatas:
+                                self.collection.add(documents=batch_docs, embeddings=embeddings, 
+                                                  ids=batch_ids, metadatas=batch_metadatas)
+                        else:
+                                self.collection.add(documents=batch_docs, embeddings=embeddings, ids=batch_ids)
+                        
+                        print(f"Added batch {i//batch_size + 1}: {len(batch_docs)} documents ({i+1}-{end_idx} of {total_docs})")
+                
+                print(f"Total: Added {len(documents)} documents to ChromaDB")
                 self._build_index()
 
         def _build_index(self):
