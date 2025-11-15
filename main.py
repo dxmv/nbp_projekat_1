@@ -12,9 +12,9 @@ MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
 QUESTIONS = [
-        "Tell me the grammar of the lox language in EBNF form?",
-        "In jlox, how does the Environment class handle variable scoping?"
-        "How does clox implement Pratt parsing for handling operator precedence?"
+        "Explain the difference between statements and expressions in Lox",
+        # "In jlox, how does the Environment class handle variable scoping?"
+        # "How does clox implement Pratt parsing for handling operator precedence?"
 ]
 
 def generate_response(query: str, context: str) -> str:
@@ -116,7 +116,7 @@ def format_metadata(metadata: dict) -> str:
                         parts.append(f"Page {metadata['page_start']}")
         return " | ".join(parts)
 
-def query_rag(rag, query: str, top_k: int = 5):
+def query_rag(rag, query: str, top_k: int = 10):
         """
         Query the RAG and display results.
         """
@@ -125,13 +125,16 @@ def query_rag(rag, query: str, top_k: int = 5):
         print(f"QUERY: {query} for {rag.__class__.__name__}")
         results = rag.retrieve(query, top_k=top_k)
 
-        for i, (doc, metadata) in enumerate(zip(results['documents'], 
-                                                 results['metadatas']), 1):
-                print(f"\n  Result {i}:")
+        # queryujemo LLM
+        response = generate_response(query, results['documents'])
+        print(f"Response: {response}")
+        for i, metadata in enumerate(results['metadatas']):
                 print(f"  Metadata: {format_metadata(metadata)}")
-                print(f"  Content preview: {doc[:200]}...")
+        for i, document in enumerate(results['documents']):
+                print(f"  Document {i}: {document}...")
         end_time = time.time()
         print(f"Time taken: {end_time - start_time:.2f} seconds")
+        print("="*80)
 
 
 def main():
@@ -139,7 +142,9 @@ def main():
         crossranking_rag, hnsw_rag = load_pdf_into_rags()
         # prvo hnsw rag
         for query in QUESTIONS:
-                query_rag(hnsw_rag,query,top_k=5)
+                query_rag(crossranking_rag,query)
+        # for query in QUESTIONS:
+        #         query_rag(crossranking_rag,query,top_k=5)
                 
 
 if __name__ == "__main__":

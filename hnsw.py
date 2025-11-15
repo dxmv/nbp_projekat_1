@@ -27,6 +27,9 @@ class HnswRAG:
                 # Inicijalizacija ChromaDB with persistence
                 self.chroma = chromadb.PersistentClient(path="./rag")
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
+                
+                # Build index from existing data if any
+                self._build_index()
 
         def add_documents(self, documents: List[str], ids: Optional[List[str]] = None, 
                          metadatas: Optional[List[Dict]] = None):
