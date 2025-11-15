@@ -9,6 +9,13 @@ from groq import Groq
 
 API_KEY = os.environ.get("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
+PDF_PATH = "data/crafting-interpreters.pdf"
+DIVIDE = 80
+QUESTIONS = [
+        "Tell me the grammar of the lox language in EBNF form?",
+        "In jlox, how does the Environment class handle variable scoping?"
+        "How does clox implement Pratt parsing for handling operator precedence?"
+]
 
 def generate_response(query: str, context: str) -> str:
         """Generate a response using Groq LLM."""
@@ -25,74 +32,36 @@ def generate_response(query: str, context: str) -> str:
         )
         return response.choices[0].message.content
 
-def load_pdf_into_rags(pdf_path: str, force_reload: bool = False):
-        """
-        Load PDF into both RAG systems.
+def load_pdf_into_rags():
+        print("="*DIVIDE)
+
+        hnsw_rag = HnswRAG()  
+        crossranking_rag = CrossRankingRAG()  
         
-        Args:
-                pdf_path: Path to the PDF file
-                force_reload: If True, reload even if collections exist
-        """
-        print("="*80)
-        print("Initializing RAG systems...")
-        print("="*80)
+        hnsw_count = hnsw_rag.collection.count()
+        crossranking_count = crossranking_rag.collection.count()
+        # da li trebamo opet da dodamo pdf 
+        if hnsw_count > 0 and crossranking_count > 0:
+                print("PDF already loaded into RAG")
+                return crossranking_rag, hnsw_rag
         
-        # Initialize both RAG systems
-        chapter_rag = HnswRAG()  # For chapters/subchapters
-        paragraph_rag = CrossRankingRAG()  # For paragraphs
         
-        # Check if we need to load data
-        chapter_count = chapter_rag.collection.count()
-        paragraph_count = paragraph_rag.collection.count()
+        print(f"\nParsing PDF: {PDF_PATH}")
+        parser = PDFParser(PDF_PATH)
         
-        if not force_reload and chapter_count > 0 and paragraph_count > 0:
-                print(f"\nData already loaded:")
-                print(f"  - Chapter RAG: {chapter_count} documents")
-                print(f"  - Paragraph RAG: {paragraph_count} documents")
-                print("\nSkipping data loading. Set force_reload=True to reload.")
-                return chapter_rag, paragraph_rag
-        
-        # Parse the PDF
-        print(f"\nParsing PDF: {pdf_path}")
-        parser = PDFParser(pdf_path)
-        
-        # Extract chapters and subchapters
-        print("\n" + "="*80)
-        print("Extracting chapters and subchapters...")
-        chapters = parser.extract_chapters_and_subchapters()
-        print(f"Found {len(chapters)} chapters/subchapters")
-        
-        # Load into chapter RAG (HNSW)
-        if len(chapters) > 0:
-                print("\nLoading chapters into HNSW RAG...")
-                chapter_docs = [ch['content'] for ch in chapters]
-                chapter_ids = [f"ch_{i}" for i in range(len(chapters))]
-                chapter_metadatas = [{
-                        'chapter': ch['chapter'],
-                        'chapter_number': ch['chapter_number'],
-                        'subchapter': ch.get('subchapter', ''),
-                        'title': ch['title'],
-                        'page_start': str(ch['page_start']),
-                        'page_end': str(ch['page_end'])
-                } for ch in chapters]
-                
-                chapter_rag.add_documents(
-                        documents=chapter_docs,
-                        ids=chapter_ids,
-                        metadatas=chapter_metadatas
-                )
-        
-        # Extract paragraphs
-        print("\n" + "="*80)
         print("Extracting paragraphs...")
         paragraphs = parser.extract_paragraphs()
         print(f"Found {len(paragraphs)} paragraphs")
+        print("Extracting large chunks...")
+        large_chunks = parser.extract_large_chunks()
+        print(f"Found {len(large_chunks)} large chunks")
         
-        # Load into paragraph RAG (FlatL2 + reranking)
+        # paragrafe u flatl2l rag
         if len(paragraphs) > 0:
-                print("\nLoading paragraphs into FlatL2 RAG...")
+                print("Loading paragraphs into FlatL2 RAG...")
                 para_docs = [p['content'] for p in paragraphs]
                 para_ids = [f"para_{i}" for i in range(len(paragraphs))]
+                # buildujemo metadatu
                 para_metadatas = [{
                         'chapter': p['chapter'],
                         'chapter_number': p['chapter_number'],
@@ -100,19 +69,36 @@ def load_pdf_into_rags(pdf_path: str, force_reload: bool = False):
                         'page_start': str(p['page_start']),
                         'page_end': str(p['page_end'])
                 } for p in paragraphs]
-                
-                paragraph_rag.add_documents(
+                crossranking_rag.add_documents(
                         documents=para_docs,
                         ids=para_ids,
                         metadatas=para_metadatas
                 )
+                print(f"FlatL2 RAG built successfully with {len(paragraphs)} paragraphs")
         
-        parser.close()
-        print("\n" + "="*80)
+        # chunkovi u hnsw rag
+        if len(large_chunks) > 0:
+                print("Loading chunks into HNSW RAG...")
+                chunk_docs = [c['content'] for c in large_chunks]
+                chunk_ids = [f"chunk_{i}" for i in range(len(large_chunks))]
+                chunk_metadatas = [{
+                        'chapter': c['chapter'],
+                        'chapter_number': c['chapter_number'],
+                        'subchapter': c.get('subchapter', ''),
+                        'page_start': str(c['page_start']),
+                        'page_end': str(c['page_end'])
+                } for c in large_chunks]
+                hnsw_rag.add_documents(
+                        documents=chunk_docs,
+                        ids=chunk_ids,
+                        metadatas=chunk_metadatas
+                )
+                print(f"HNSW RAG built successfully with {len(large_chunks)} chunks")
+
         print("PDF loaded successfully into both RAG systems!")
-        print("="*80)
+        print("="*DIVIDE)
         
-        return chapter_rag, paragraph_rag
+        return hnsw_rag, crossranking_rag
 
 def format_metadata(metadata: dict) -> str:
         """Format metadata for display."""
@@ -130,104 +116,31 @@ def format_metadata(metadata: dict) -> str:
                         parts.append(f"Page {metadata['page_start']}")
         return " | ".join(parts)
 
-def query_both_systems(chapter_rag, paragraph_rag, query: str, top_k: int = 3):
+def query_rag(rag, query: str, top_k: int = 5):
         """
-        Query both RAG systems and display results.
+        Query the RAG and display results.
         """
-        print("\n" + "="*80)
-        print(f"QUERY: {query}")
-        print("="*80)
-        
-        # Query Chapter RAG (HNSW)
-        print("\n[1] CHAPTER-BASED RAG (HNSW + Large Embeddings)")
-        print("-"*80)
         start_time = time.time()
-        chapter_results = chapter_rag.retrieve(query, top_k=top_k)
-        chapter_time = time.time() - start_time
-        
-        print(f"Retrieval time: {chapter_time:.4f} seconds")
-        print(f"\nTop {top_k} results:")
-        for i, (doc, metadata) in enumerate(zip(chapter_results['documents'], 
-                                                 chapter_results['metadatas']), 1):
+        print("="*80)
+        print(f"QUERY: {query} for {rag.__class__.__name__}")
+        results = rag.retrieve(query, top_k=top_k)
+
+        for i, (doc, metadata) in enumerate(zip(results['documents'], 
+                                                 results['metadatas']), 1):
                 print(f"\n  Result {i}:")
                 print(f"  Metadata: {format_metadata(metadata)}")
                 print(f"  Content preview: {doc[:200]}...")
-        
-        # Query Paragraph RAG (FlatL2 + Reranking)
-        print("\n" + "="*80)
-        print("[2] PARAGRAPH-BASED RAG (FlatL2 + Small Embeddings + Reranking)")
-        print("-"*80)
-        start_time = time.time()
-        para_results = paragraph_rag.retrieve(query, top_k=top_k)
-        para_time = time.time() - start_time
-        
-        print(f"Retrieval time: {para_time:.4f} seconds")
-        print(f"\nTop {top_k} results:")
-        for i, (doc, metadata, score) in enumerate(zip(para_results['documents'], 
-                                                        para_results['metadatas'],
-                                                        para_results['scores']), 1):
-                print(f"\n  Result {i} (score: {score:.4f}):")
-                print(f"  Metadata: {format_metadata(metadata)}")
-                print(f"  Content preview: {doc[:200]}...")
-        
-        # Generate LLM response using best result from each system
-        print("\n" + "="*80)
-        print("GENERATED RESPONSES")
-        print("="*80)
-        
-        if chapter_results['documents']:
-                print("\n[1] Response from Chapter-based RAG:")
-                print("-"*80)
-                response1 = generate_response(query, chapter_results['documents'][0])
-                print(response1)
-        
-        if para_results['documents']:
-                print("\n[2] Response from Paragraph-based RAG:")
-                print("-"*80)
-                response2 = generate_response(query, para_results['documents'][0])
-                print(response2)
-        
-        print("\n" + "="*80)
-        print("COMPARISON")
-        print("="*80)
-        print(f"Chapter RAG retrieval time: {chapter_time:.4f}s")
-        print(f"Paragraph RAG retrieval time: {para_time:.4f}s")
-        print(f"Speed difference: {abs(chapter_time - para_time):.4f}s")
+        end_time = time.time()
+        print(f"Time taken: {end_time - start_time:.2f} seconds")
+
 
 def main():
-        """Main function."""
-        pdf_path = "data/crafting-interpreters.pdf"
-        
-        # Load PDF into both RAG systems
-        chapter_rag, paragraph_rag = load_pdf_into_rags(pdf_path, force_reload=False)
-        
-        # Example queries
-        queries = [
-                "What is lexical analysis and scanning?",
-                "How do interpreters work?",
-                "What are the different types of programming languages?"
-        ]
-        
-        print("\n\n" + "="*80)
-        print("DEMO: Querying both RAG systems")
-        print("="*80)
-        
-        # Query the first example
-        query_both_systems(chapter_rag, paragraph_rag, queries[0], top_k=3)
-        
-        # Interactive mode
-        print("\n\n" + "="*80)
-        print("INTERACTIVE MODE")
-        print("="*80)
-        print("Enter your questions (or 'quit' to exit):")
-        
-        while True:
-                query = input("\nYour question: ").strip()
-                if query.lower() in ['quit', 'exit', 'q']:
-                        print("Goodbye!")
-                        break
-                if query:
-                        query_both_systems(chapter_rag, paragraph_rag, query, top_k=3)
+        # dodamo pdf u oba raga
+        crossranking_rag, hnsw_rag = load_pdf_into_rags()
+        # prvo hnsw rag
+        for query in QUESTIONS:
+                query_rag(hnsw_rag,query,top_k=5)
+                
 
 if __name__ == "__main__":
         main()

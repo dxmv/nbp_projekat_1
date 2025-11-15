@@ -8,6 +8,8 @@ from unstructured.partition.pdf import partition_pdf
 from unstructured.documents.elements import Title, NarrativeText, Text
 import re
 
+MIN_PARAGRAPH_LENGTH = 50
+CHUNK_SIZE = 4
 
 class PDFParser:
     def __init__(self, pdf_path: str):
@@ -22,31 +24,23 @@ class PDFParser:
         )
         print(f"Total elements from PDF: {len(self.elements)}")
         
-    def extract_large_chunks(self, paragraphs_per_chunk: int = 4) -> List[Dict]:
+    def extract_large_chunks(self) -> List[Dict]:
         """
-        Extract larger chunks by combining multiple paragraphs.
-        This creates bigger context windows for the HNSW RAG.
-        
-        Args:
-            paragraphs_per_chunk: Number of paragraphs to combine into one chunk
-        
-        Returns:
-            List of dictionaries with combined content and metadata.
+        Korsiti paragrafe od donje funkcije i kombinuj ih u chunkove od 4 paragrafa
         """
-        # First get all paragraphs
+        # svi paragrafi
         paragraphs = self.extract_paragraphs()
         
         large_chunks = []
         i = 0
         
         while i < len(paragraphs):
-            # Take next N paragraphs
-            chunk_paras = paragraphs[i:i + paragraphs_per_chunk]
+            # n sledecih paragrafa
+            chunk_paras = paragraphs[i:i + CHUNK_SIZE]
             
-            # Combine their content
             combined_content = ' '.join([p['content'] for p in chunk_paras])
             
-            # Use metadata from first paragraph in chunk
+            # metadata prvog paragrafa u chunku
             first_para = chunk_paras[0]
             last_para = chunk_paras[-1]
             
@@ -61,14 +55,13 @@ class PDFParser:
             }
             
             large_chunks.append(chunk_data)
-            i += paragraphs_per_chunk
+            i += CHUNK_SIZE
         
         return large_chunks
     
     def extract_paragraphs(self) -> List[Dict]:
         """
-        Extract paragraphs from the PDF.
-        Returns a list of dictionaries with paragraph content and metadata.
+        Uzima paragrafe iz PDFa
         """
         paragraphs = []
         current_chapter = "0"
@@ -76,7 +69,7 @@ class PDFParser:
         current_page = 1
         
         for element in self.elements:
-            # Get metadata
+            # metadata
             metadata = element.metadata if hasattr(element, 'metadata') else None
             page_num = metadata.page_number if metadata and hasattr(metadata, 'page_number') else current_page
             
@@ -85,7 +78,8 @@ class PDFParser:
             
             text = str(element).strip()
             
-            # Track chapter context from section numbers
+            # chapter i skecije
+            # "1", "1.1", "1.1.1", etc.
             section_match = re.match(r'^(\d+(?:\s*\.\s*\d+)*)\s*$', text)
             if section_match:
                 section_num = section_match.group(1).replace(' ', '')
@@ -98,12 +92,10 @@ class PDFParser:
                     current_subchapter = section_num
                 continue
             
-            # Extract narrative text as paragraphs
+            # paragrafi
             if isinstance(element, (NarrativeText, Text)):
-                # Filter out very short texts, page numbers, and section numbers
-                if (len(text) > 50 and 
-                    not re.match(r'^\d+$', text) and
-                    not re.match(r'^(\d+\s*\.\s*)+\d*$', text)):
+                # ne dodajemo kratke tekstove, bro
+                if len(text) > MIN_PARAGRAPH_LENGTH:
                     
                     paragraphs.append({
                         'content': text,
