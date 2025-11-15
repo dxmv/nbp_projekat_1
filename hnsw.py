@@ -28,7 +28,8 @@ class HnswRAG:
                 self.chroma = chromadb.PersistentClient(path="./rag")
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
 
-        def add_documents(self, documents: List[str], ids: Optional[List[str]] = None):
+        def add_documents(self, documents: List[str], ids: Optional[List[str]] = None, 
+                         metadatas: Optional[List[Dict]] = None):
                 # Generisanje ID-jeva ako nisu dostavljeni
                 if ids is None:
                         ids = [str(i) for i in range(len(documents))]
@@ -36,8 +37,12 @@ class HnswRAG:
                 # Generisanje embeddinga
                 embeddings = self.embedding_model.encode(documents).tolist()
 
-                # Dodavanje u ChromaDB
-                self.collection.add(documents=documents, embeddings=embeddings, ids=ids)
+                # Dodavanje u ChromaDB sa metadatama
+                if metadatas:
+                        self.collection.add(documents=documents, embeddings=embeddings, 
+                                          ids=ids, metadatas=metadatas)
+                else:
+                        self.collection.add(documents=documents, embeddings=embeddings, ids=ids)
                 
                 print(f"Added {len(documents)} documents to ChromaDB")
                 self._build_index()
@@ -65,11 +70,13 @@ class HnswRAG:
                 distances, indices = self.index.search(query_emb, top_k)
                 # i onda ih rerankujemo
                 doc_ids = [self.doc_id_mapping[i] for i in indices[0]]
-                chroma_results = self.collection.get(ids=doc_ids, include=['documents'])
+                chroma_results = self.collection.get(ids=doc_ids, include=['documents', 'metadatas'])
                 
                 return {
                         "documents": chroma_results['documents'],
                         "doc_ids": doc_ids,
+                        "metadatas": chroma_results.get('metadatas', []),
+                        "distances": distances[0].tolist()
                 }
 
         def chunk_documents(self, documents: List[str], chunk_size: int = 512) -> List[str]:

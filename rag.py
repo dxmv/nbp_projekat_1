@@ -29,7 +29,8 @@ class CrossRankingRAG:
                 self.chroma = chromadb.PersistentClient(path="./rag")
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
 
-        def add_documents(self, documents: List[str], ids: Optional[List[str]] = None):
+        def add_documents(self, documents: List[str], ids: Optional[List[str]] = None,
+                         metadatas: Optional[List[Dict]] = None):
                 # Generisanje ID-jeva ako nisu dostavljeni
                 if ids is None:
                         ids = [str(i) for i in range(len(documents))]
@@ -37,8 +38,12 @@ class CrossRankingRAG:
                 # Generisanje embeddinga
                 embeddings = self.embedding_model.encode(documents).tolist()
                 
-                # Dodavanje u ChromaDB
-                self.collection.add(documents=documents, embeddings=embeddings, ids=ids)
+                # Dodavanje u ChromaDB sa metadatama
+                if metadatas:
+                        self.collection.add(documents=documents, embeddings=embeddings, 
+                                          ids=ids, metadatas=metadatas)
+                else:
+                        self.collection.add(documents=documents, embeddings=embeddings, ids=ids)
                 
                 print(f"Added {len(documents)} documents to ChromaDB")
                 self._build_index()
@@ -63,11 +68,23 @@ class CrossRankingRAG:
         def retrieve(self, query: str, top_k: int = 5) -> Dict:
                 # nadjemo vise kandidata
                 query_emb = self.embedding_model.encode([query]).astype('float32')
-                distances, indices = self.index.search(query_emb, top_k*3)
+                # Adjust candidate count based on index size
+                candidate_count = min(len(self.doc_id_mapping), max(top_k * 3, top_k + 5))
+                distances, indices = self.index.search(query_emb, candidate_count)
+                
+                # Remove duplicates while preserving order
+                doc_ids = []
+                seen = set()
+                for i in indices[0]:
+                        doc_id = self.doc_id_mapping[i]
+                        if doc_id not in seen:
+                                doc_ids.append(doc_id)
+                                seen.add(doc_id)
+                
                 # i onda ih rerankujemo
-                doc_ids = [self.doc_id_mapping[i] for i in indices[0]]
-                chroma_results = self.collection.get(ids=doc_ids, include=['documents'])
+                chroma_results = self.collection.get(ids=doc_ids, include=['documents', 'metadatas'])
                 docs = chroma_results['documents']
+                metadatas = chroma_results.get('metadatas', [])
                 pairs = [[query, doc] for doc in docs]
                 scores = self.cross_encoder.predict(pairs)
                 scores_with_index = [[score, index] for index, score in enumerate(scores)]
@@ -76,6 +93,7 @@ class CrossRankingRAG:
                 return {
                         "documents": [docs[index] for score,index in indexes],
                         "doc_ids": [doc_ids[index] for score,index in indexes],
+                        "metadatas": [metadatas[index] for score,index in indexes] if metadatas else [],
                         "scores": [float(score) for score,index in indexes]
                 }
 
