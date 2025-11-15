@@ -22,112 +22,48 @@ class PDFParser:
         )
         print(f"Total elements from PDF: {len(self.elements)}")
         
-    def extract_chapters_and_subchapters(self) -> List[Dict]:
+    def extract_large_chunks(self, paragraphs_per_chunk: int = 4) -> List[Dict]:
         """
-        Extract chapters and subchapters from the PDF using document structure.
-        Returns a list of dictionaries with content and metadata.
+        Extract larger chunks by combining multiple paragraphs.
+        This creates bigger context windows for the HNSW RAG.
+        
+        Args:
+            paragraphs_per_chunk: Number of paragraphs to combine into one chunk
+        
+        Returns:
+            List of dictionaries with combined content and metadata.
         """
-        chapters = []
-        current_chapter = None
-        current_subchapter = None
-        current_title = None
-        current_content = []
-        current_page = 1
-        start_page = 1
+        # First get all paragraphs
+        paragraphs = self.extract_paragraphs()
         
-        for element in self.elements:
-            # Get metadata
-            metadata = element.metadata if hasattr(element, 'metadata') else None
-            page_num = metadata.page_number if metadata and hasattr(metadata, 'page_number') else current_page
+        large_chunks = []
+        i = 0
+        
+        while i < len(paragraphs):
+            # Take next N paragraphs
+            chunk_paras = paragraphs[i:i + paragraphs_per_chunk]
             
-            if page_num != current_page:
-                current_page = page_num
+            # Combine their content
+            combined_content = ' '.join([p['content'] for p in chunk_paras])
             
-            text = str(element).strip()
+            # Use metadata from first paragraph in chunk
+            first_para = chunk_paras[0]
+            last_para = chunk_paras[-1]
             
-            # chapter i skecije
-            # "1", "1.1", "1.1.1", etc.
-            section_match = re.match(r'^(\d+(?:\s*\.\s*\d+)*)\s*$', text)
+            chunk_data = {
+                'content': combined_content,
+                'chapter': first_para['chapter'],
+                'chapter_number': first_para['chapter_number'],
+                'subchapter': first_para.get('subchapter', ''),
+                'page_start': first_para['page_start'],
+                'page_end': last_para['page_end'],
+                'num_paragraphs': len(chunk_paras)
+            }
             
-            if isinstance(element, Title) or section_match:
-                if section_match:
-                    if current_content and current_chapter is not None:
-                        self._save_chapter(chapters, current_chapter, current_subchapter, 
-                                         current_title, current_content, start_page, current_page)
-                        current_content = []
-                    
-                    section_num = section_match.group(1).replace(' ', '')
-                    parts = section_num.split('.')
-                    
-                    if len(parts) == 1:
-                        # glavni chapter
-                        current_chapter = section_num
-                        current_subchapter = None
-                        current_title = None
-                    else:
-                        # subchapter
-                        current_chapter = parts[0]
-                        current_subchapter = section_num
-                        current_title = None
-                    
-                    start_page = page_num
-                    
-                elif isinstance(element, Title) and not current_title:
-                    current_title = text
-                    
-            elif isinstance(element, (NarrativeText, Text)):
-                # Regular content
-                if text and len(text) > 10:  # Filter very short texts
-                    # Check if this text contains a chapter heading pattern
-                    chapter_in_text = re.match(r'^(\d+)\s+(.+)$', text)
-                    if chapter_in_text and len(text) < 100:
-                        # Save previous section
-                        if current_content and current_chapter is not None:
-                            self._save_chapter(chapters, current_chapter, current_subchapter,
-                                             current_title, current_content, start_page, current_page)
-                            current_content = []
-                        
-                        current_chapter = chapter_in_text.group(1)
-                        current_subchapter = None
-                        current_title = chapter_in_text.group(2).strip()
-                        start_page = page_num
-                    else:
-                        current_content.append(text)
+            large_chunks.append(chunk_data)
+            i += paragraphs_per_chunk
         
-        # Save the last section
-        if current_content and current_chapter is not None:
-            self._save_chapter(chapters, current_chapter, current_subchapter,
-                             current_title, current_content, start_page, current_page)
-        
-        return chapters
-    
-    def _save_chapter(self, chapters: List[Dict], chapter: str, subchapter: str,
-                      title: str, content: List[str], start_page: int, end_page: int):
-        """Helper method to save a chapter/section with metadata."""
-        if not content:
-            return
-            
-        # Join content
-        full_content = ' '.join(content)
-        
-        # Use title or first line as title
-        if not title:
-            title = content[0] if content else "Unknown"
-        
-        if len(title) > 100:
-            title = title[:100] + "..."
-        
-        chapter_data = {
-            'content': full_content,
-            'chapter': chapter or "0",
-            'chapter_number': chapter or "0",
-            'subchapter': subchapter or "",
-            'title': title,
-            'page_start': start_page,
-            'page_end': end_page
-        }
-        
-        chapters.append(chapter_data)
+        return large_chunks
     
     def extract_paragraphs(self) -> List[Dict]:
         """
@@ -179,38 +115,3 @@ class PDFParser:
                     })
         
         return paragraphs
-
-
-def test_parser():
-    """Test the PDF parser."""
-    parser = PDFParser("data/crafting-interpreters.pdf")
-    chapters = parser.extract_chapters_and_subchapters()
-    print(f"Found {len(chapters)} chapters/subchapters")
-    
-    if chapters:
-        print("\nFirst 5 chapters/subchapters:")
-        for i, ch in enumerate(chapters[:5]):
-            print(f"\n{i+1}. Chapter {ch['chapter']}" + 
-                  (f", Section {ch['subchapter']}" if ch['subchapter'] else ""))
-            print(f"   Title: {ch['title']}")
-            print(f"   Pages: {ch['page_start']}-{ch['page_end']}")
-            print(f"   Content length: {len(ch['content'])} chars")
-            print(f"   Content preview: {ch['content'][:150]}...")
-    
-    print("\n" + "="*80)
-    print("Extracting paragraphs...")
-    paragraphs = parser.extract_paragraphs()
-    print(f"Found {len(paragraphs)} paragraphs")
-    
-    if paragraphs:
-        print("\nFirst 3 paragraphs:")
-        for i, para in enumerate(paragraphs[:3]):
-            print(f"\n{i+1}. Chapter {para['chapter']}" +
-                  (f", Section {para['subchapter']}" if para['subchapter'] else ""))
-            print(f"   Page: {para['page_start']}")
-            print(f"   Content: {para['content'][:150]}...")
-    
-
-
-if __name__ == "__main__":
-    test_parser()
