@@ -1,5 +1,3 @@
-# from disable_warnings import disable_warning_messages
-# disable_warning_messages()
 import os
 import time
 from rag import CrossRankingRAG
@@ -12,23 +10,22 @@ MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
 QUESTIONS = [
-        "Explain the difference between statements and expressions in Lox",
-        # "In jlox, how does the Environment class handle variable scoping?"
-        # "How does clox implement Pratt parsing for handling operator precedence?"
+        # "Explain the difference between statements and expressions in Lox",\
+        # "List all types of expressions and statements in Lox",
+        "What does the Resolver class do in Lox?"
 ]
 
 def generate_response(query: str, context: str) -> str:
-        """Generate a response using Groq LLM."""
         prompt = f"""
         You are a helpful assistant that can answer questions about the following context:
         {context}
         Question: {query}
-        Answer:
         """
         response = Groq(api_key=API_KEY).chat.completions.create(
                 model=MODEL,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.7
+                temperature=0.7,
+                max_tokens=2048
         )
         return response.choices[0].message.content
 
@@ -56,12 +53,12 @@ def load_pdf_into_rags():
         large_chunks = parser.extract_large_chunks()
         print(f"Found {len(large_chunks)} large chunks")
         
-        # paragrafe u flatl2l rag
+        # dodajemo paragrafe u crossranking rag
         if len(paragraphs) > 0:
                 print("Loading paragraphs into FlatL2 RAG...")
                 para_docs = [p['content'] for p in paragraphs]
                 para_ids = [f"para_{i}" for i in range(len(paragraphs))]
-                # buildujemo metadatu
+                # metadata
                 para_metadatas = [{
                         'chapter': p['chapter'],
                         'chapter_number': p['chapter_number'],
@@ -117,10 +114,7 @@ def format_metadata(metadata: dict) -> str:
         return " | ".join(parts)
 
 def query_rag(rag, query: str, top_k: int = 10):
-        """
-        Query the RAG and display results.
-        """
-        start_time = time.time()
+        start_time = time.time() # za merenje vremena
         print("="*80)
         print(f"QUERY: {query} for {rag.__class__.__name__}")
         results = rag.retrieve(query, top_k=top_k)

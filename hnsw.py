@@ -28,7 +28,7 @@ class HnswRAG:
                 self.chroma = chromadb.PersistentClient(path="./rag")
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
                 
-                # Build index from existing data if any
+                # ako vec postoje informacije odmah buildamo index
                 self._build_index()
 
         def add_documents(self, documents: List[str], ids: Optional[List[str]] = None, 
@@ -37,54 +37,54 @@ class HnswRAG:
                 if ids is None:
                         ids = [str(i) for i in range(len(documents))]
                 
-                # ChromaDB batch size limit
+                # size batcha za chroma db je 5000
                 batch_size = 5000
                 total_docs = len(documents)
                 
-                # Process in batches
                 for i in range(0, total_docs, batch_size):
                         end_idx = min(i + batch_size, total_docs)
                         batch_docs = documents[i:end_idx]
                         batch_ids = ids[i:end_idx]
                         batch_metadatas = metadatas[i:end_idx] if metadatas else None
                         
-                        # Generisanje embeddinga za batch
+                        # embedding za batch
                         embeddings = self.embedding_model.encode(batch_docs).tolist()
                         
-                        # Dodavanje u ChromaDB sa metadatama
                         if batch_metadatas:
                                 self.collection.add(documents=batch_docs, embeddings=embeddings, 
                                                   ids=batch_ids, metadatas=batch_metadatas)
                         else:
                                 self.collection.add(documents=batch_docs, embeddings=embeddings, ids=batch_ids)
                         
-                        print(f"Added batch {i//batch_size + 1}: {len(batch_docs)} documents ({i+1}-{end_idx} of {total_docs})")
+                        print(f"Added batch {i//batch_size + 1}: {len(batch_docs)} documents")
                 
-                print(f"Total: Added {len(documents)} documents to ChromaDB")
+                print(f"Finished: Added {len(documents)} documents to ChromaDB")
+
+                # odmah buildamo index posle dodavanja podataka
                 self._build_index()
 
         def _build_index(self):
-                # Get all documents from ChromaDB
+                # svi dokumenti iz chroma db
                 results = self.collection.get(include=['embeddings', 'documents'])
         
-                # Provera da li ima embeddinga
+                # ako nema embeddinga odmah return
                 if results['embeddings'] is None or len(results['embeddings']) == 0:
-                        print("No embeddings in ChromaDB yet. FAISS index will be built after adding documents.")
+                        print("No embeddings in ChromaDB yet")
                         return
-                # Convert to numpy array
+                # numpy array
                 embeddings = np.array(results['embeddings']).astype('float32')
                 
-                # Create FAISS index (dimension, M=32 neighbors)
+                # 32 neighboursa
                 self.index = faiss.IndexHNSWFlat(self.embedding_dim, 32)
                 self.index.add(embeddings)
                 self.doc_id_mapping = results['ids']
-                print(f"FAISS index built with {len(embeddings)} vectors")
+                print(f"Index built with {len(embeddings)} vectors")
 
         def retrieve(self, query: str, top_k: int = 5) -> Dict:
-                # nadjemo vise kandidata
+                # vektor za query
                 query_emb = self.embedding_model.encode([query]).astype('float32')
                 distances, indices = self.index.search(query_emb, top_k)
-                # i onda ih rerankujemo
+                # id-jevi i rezultati
                 doc_ids = [self.doc_id_mapping[i] for i in indices[0]]
                 chroma_results = self.collection.get(ids=doc_ids, include=['documents', 'metadatas'])
                 
@@ -94,8 +94,5 @@ class HnswRAG:
                         "metadatas": chroma_results.get('metadatas', []),
                         "distances": distances[0].tolist()
                 }
-
-        def chunk_documents(self, documents: List[str], chunk_size: int = 512) -> List[str]:
-                self.add_documents(documents=documents[0].split("\n"))
 
             

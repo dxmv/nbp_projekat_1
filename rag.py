@@ -25,34 +25,31 @@ class CrossRankingRAG:
                 self.cross_encoder = CrossEncoder(cross_encoder_model)
                 self.index = None
 
-                # Inicijalizacija ChromaDB with persistence
                 self.chroma = chromadb.PersistentClient(path="./rag")
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
                 
-                # Build index from existing data if any
+                # ako vec postoje informacije odmah buildamo index
                 self._build_index()
 
         def add_documents(self, documents: List[str], ids: Optional[List[str]] = None,
                          metadatas: Optional[List[Dict]] = None):
-                # Generisanje ID-jeva ako nisu dostavljeni
+                # id-jevi ako nisu dostavljeni
                 if ids is None:
                         ids = [str(i) for i in range(len(documents))]
                 
-                # ChromaDB batch size limit
+                # size batcha za chroma db je 5000
                 batch_size = 5000
                 total_docs = len(documents)
                 
-                # Process in batches
                 for i in range(0, total_docs, batch_size):
                         end_idx = min(i + batch_size, total_docs)
                         batch_docs = documents[i:end_idx]
                         batch_ids = ids[i:end_idx]
                         batch_metadatas = metadatas[i:end_idx] if metadatas else None
                         
-                        # Generisanje embeddinga za batch
                         embeddings = self.embedding_model.encode(batch_docs).tolist()
                         
-                        # Dodavanje u ChromaDB sa metadatama
+                        # dodajemo u chroma db sa metadata
                         if batch_metadatas:
                                 self.collection.add(documents=batch_docs, embeddings=embeddings, 
                                                   ids=batch_ids, metadatas=batch_metadatas)
@@ -65,17 +62,13 @@ class CrossRankingRAG:
                 self._build_index()
 
         def _build_index(self):
-                # Get all documents from ChromaDB
                 results = self.collection.get(include=['embeddings', 'documents'])
         
-                # Provera da li ima embeddinga
                 if results['embeddings'] is None or len(results['embeddings']) == 0:
                         print("No embeddings in ChromaDB yet. FAISS index will be built after adding documents.")
                         return
-                # Convert to numpy array
                 embeddings = np.array(results['embeddings']).astype('float32')
                 
-                # Create FAISS index
                 self.index = faiss.IndexFlatL2(self.embedding_dim)
                 self.index.add(embeddings)
                 self.doc_id_mapping = results['ids']
@@ -113,7 +106,5 @@ class CrossRankingRAG:
                         "scores": [float(score) for score,index in indexes]
                 }
 
-        def chunk_documents(self, documents: List[str], chunk_size: int = 512) -> List[str]:
-                self.add_documents(documents=documents[0].split("\n"))
 
             

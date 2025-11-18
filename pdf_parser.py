@@ -94,7 +94,7 @@ class PDFParser:
             
             # paragrafi
             if isinstance(element, (NarrativeText, Text)):
-                # ne dodajemo kratke tekstove, bro
+                # ne dodajemo kratke tekstove
                 if len(text) > MIN_PARAGRAPH_LENGTH:
                     
                     paragraphs.append({
