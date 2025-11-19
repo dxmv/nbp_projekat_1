@@ -14,6 +14,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
 COLLECTION_NAME = "reorder"
+PATH = "./rag"
 
 
 class CrossRankingRAG:
@@ -25,7 +26,7 @@ class CrossRankingRAG:
                 self.cross_encoder = CrossEncoder(cross_encoder_model)
                 self.index = None
 
-                self.chroma = chromadb.PersistentClient(path="./rag")
+                self.chroma = chromadb.PersistentClient(path=PATH)
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
                 
                 # ako vec postoje informacije odmah buildamo index

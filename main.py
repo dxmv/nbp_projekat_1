@@ -10,9 +10,8 @@ MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
 QUESTIONS = [
-        # "Explain the difference between statements and expressions in Lox",\
-        # "List all types of expressions and statements in Lox",
-        "What does the Resolver class do in Lox?"
+        # "List all types of expressions and statements in jlox",
+        "Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?"
 ]
 
 def generate_response(query: str, context: str) -> str:
@@ -40,7 +39,7 @@ def load_pdf_into_rags():
         # da li trebamo opet da dodamo pdf 
         if hnsw_count > 0 and crossranking_count > 0:
                 print("PDF already loaded into RAG")
-                return crossranking_rag, hnsw_rag
+                return hnsw_rag, crossranking_rag
         
         
         print(f"\nParsing PDF: {PDF_PATH}")
@@ -54,7 +53,7 @@ def load_pdf_into_rags():
         print(f"Found {len(large_chunks)} large chunks")
         
         # dodajemo paragrafe u crossranking rag
-        if len(paragraphs) > 0:
+        if len(paragraphs) > 0 and crossranking_count == 0:
                 print("Loading paragraphs into FlatL2 RAG...")
                 para_docs = [p['content'] for p in paragraphs]
                 para_ids = [f"para_{i}" for i in range(len(paragraphs))]
@@ -74,7 +73,7 @@ def load_pdf_into_rags():
                 print(f"FlatL2 RAG built successfully with {len(paragraphs)} paragraphs")
         
         # chunkovi u hnsw rag
-        if len(large_chunks) > 0:
+        if len(large_chunks) > 0 and hnsw_count == 0:
                 print("Loading chunks into HNSW RAG...")
                 chunk_docs = [c['content'] for c in large_chunks]
                 chunk_ids = [f"chunk_{i}" for i in range(len(large_chunks))]
@@ -124,8 +123,6 @@ def query_rag(rag, query: str, top_k: int = 10):
         print(f"Response: {response}")
         for i, metadata in enumerate(results['metadatas']):
                 print(f"  Metadata: {format_metadata(metadata)}")
-        for i, document in enumerate(results['documents']):
-                print(f"  Document {i}: {document}...")
         end_time = time.time()
         print(f"Time taken: {end_time - start_time:.2f} seconds")
         print("="*80)
@@ -133,12 +130,12 @@ def query_rag(rag, query: str, top_k: int = 10):
 
 def main():
         # dodamo pdf u oba raga
-        crossranking_rag, hnsw_rag = load_pdf_into_rags()
-        # prvo hnsw rag
-        for query in QUESTIONS:
-                query_rag(crossranking_rag,query)
-        # for query in QUESTIONS:
-        #         query_rag(crossranking_rag,query,top_k=5)
+        hnsw_rag, crossranking_rag = load_pdf_into_rags()
+        
+        for i, query in enumerate(QUESTIONS):
+                print(f"\n{i+1}. Processing Query: {query}")
+                query_rag(crossranking_rag, query)
+                query_rag(hnsw_rag, query)
                 
 
 if __name__ == "__main__":

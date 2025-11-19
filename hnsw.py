@@ -4,7 +4,7 @@ RAG sa:
 HNSW indexom
 Vektorima velikih dimenzija
 Sementicnim chunkingom 
-Binarnom kvantizacijom
+Celobrojnom kvantizacijom
 '''
 
 from chromadb.config import Settings
@@ -15,6 +15,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
 COLLECTION_NAME = "hnsw"
+PATH = "./hnsw"
 
 
 class HnswRAG:
@@ -25,7 +26,7 @@ class HnswRAG:
                 self.index = None
 
                 # Inicijalizacija ChromaDB with persistence
-                self.chroma = chromadb.PersistentClient(path="./rag")
+                self.chroma = chromadb.PersistentClient(path=PATH)
                 self.collection = self.chroma.get_or_create_collection(COLLECTION_NAME)
                 
                 # ako vec postoje informacije odmah buildamo index
@@ -74,11 +75,19 @@ class HnswRAG:
                 # numpy array
                 embeddings = np.array(results['embeddings']).astype('float32')
                 
-                # 32 neighboursa
-                self.index = faiss.IndexHNSWFlat(self.embedding_dim, 32)
+                # M = 32 (broj linkova po čvoru)
+                print("Building HNSW index with Scalar Quantization (SQ8)...")
+                self.index = faiss.IndexHNSWSQ(self.embedding_dim, faiss.ScalarQuantizer.QT_8bit, 32)
+                
+                # trening za kvantizaciju
+                print("Training index...")
+                self.index.train(embeddings)
+                
+                print("Adding vectors to index...")
                 self.index.add(embeddings)
+                
                 self.doc_id_mapping = results['ids']
-                print(f"Index built with {len(embeddings)} vectors")
+                print(f"Index built with {len(embeddings)} vectors using SQ8 quantization")
 
         def retrieve(self, query: str, top_k: int = 5) -> Dict:
                 # vektor za query
