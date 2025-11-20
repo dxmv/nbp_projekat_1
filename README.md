@@ -15,15 +15,15 @@
 **Query**:*"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"*
 
 **Response:**
-The book implements string interning in the hash table by using a sister function to `findEntry()`, called `tableFindString()`, which performs a hash table lookup for interning strings. This is done by using the `capacity` as a mask when wrapping the string's hash key.
+The book implements string interning in the hash table by using a sister function of `findEntry()`, called `tableFindString()`, which performs a hash table lookup for interning strings. When creating strings, the book adds a little overhead to intern them, which allows for faster equality operator checks on strings at runtime.
 
-The performance benefits of this optimization are significant. By interning strings, the equality operator on strings becomes much faster at runtime. This is because the hash table lookup allows for quick identification of duplicate strings, eliminating the need for character-by-character equality comparisons.
+The performance benefits of this optimization include:
 
-Additionally, the book notes that high-performance VMs for languages like JavaScript use sophisticated optimizations like "hidden classes" to avoid the overhead of hash table lookups. However, the optimization implemented in the book provides a good example of how to improve performance by reducing the overhead of hash table lookups.
+1. **Faster equality operator checks**: By interning strings, the equality operator on strings becomes much faster, as it can simply compare the hash codes of the strings instead of performing a character-by-character comparison.
+2. **Improved hash table lookup performance**: The optimization reduces the overhead of hash table lookups, making them faster and more efficient.
+3. **Reduced overhead in high-performance VMs**: The use of string interning can help avoid the overhead of hash table lookups for every field access, which is particularly important in high-performance VMs for languages like JavaScript.
 
-It's also mentioned that walking the entire string to calculate the hash is kind of slow, and doing a hash table lookup for every field access is fast enough for many language implementations, but not ideal. The optimization implemented in the book helps to mitigate this issue by allowing for faster hash table lookups.
-
-Overall, the optimization provides a significant performance benefit, especially when dealing with large numbers of strings. The trade-off is a small overhead when creating strings to intern them, but this is outweighed by the benefits of faster equality checks at runtime.
+Overall, the book's implementation of string interning in the hash table provides a significant performance benefit, especially in scenarios where string equality checks are frequent.
 
 **Metadata:**
 *   Chapter 30 | Section 30.2.2 | Page 581
@@ -37,18 +37,24 @@ Overall, the optimization provides a significant performance benefit, especially
 *   Chapter 20 | Section 20.4.2 | Page 360
 *   Chapter 20 | Section 20.5 | Page 371
 
+**Metrics:**
+*   Precision@10: 60.00%
+*   Recall@10: 1.92%
+*   Relevant Retrieved: 6/10
+*   Total Relevant in DB: 312
+
 ## HnswRAG
 
 **Response:**
-The book implements string interning in the hash table by automatically interning every unique string that is created. This means that whenever a new string is created, it is added to the table, which is used more like a hash set than a hash table, where the keys are the strings and the values are not important (in this case, `nil` is used).
+The book implements string interning in the hash table by storing a pointer to every single string in the heap in a hash table, known as the string table. When a new string is created, it is first looked up in the string table using the `tableFindString` function. If the string is found, a reference to the existing string is returned instead of creating a new copy. If the string is not found, a new string is allocated and stored in the string table.
 
-The performance benefits of this optimization are:
+This optimization provides several performance benefits:
 
-1. **Faster equality checks**: With string interning, checking if two strings are equal becomes much faster, as it only requires comparing the pointers to the interned strings, rather than comparing the actual string characters.
-2. **Improved performance in dynamically-typed languages**: In languages like Lox, where method calls and instance fields are looked up by name at runtime, fast string equality checks are critical. If string equality checks are slow, then looking up a method by name is slow, which can slow down the entire language.
-3. **Reduced memory usage**: By deduplicating strings, string interning reduces the amount of memory used by the program, as multiple copies of the same string are not stored in memory.
+1. **Faster equality checks**: With string interning, the equality operator on strings can be implemented as a simple pointer comparison, which is much faster than a character-by-character string comparison.
+2. **Reduced memory usage**: By reusing existing strings, the VM reduces the amount of memory allocated for strings, which can help to prevent memory fragmentation and improve overall performance.
+3. **Improved performance in hash table lookups**: String interning helps to reduce the number of collisions in the hash table, which can improve the performance of hash table lookups.
 
-Overall, the book's implementation of string interning in the hash table provides a significant performance optimization, especially in situations where strings are created and compared frequently.
+Overall, string interning is a useful optimization that can improve the performance of the VM by reducing memory usage and improving the efficiency of string operations.
 
 **Metadata:**
 *   Chapter 20 | Page 350
@@ -62,10 +68,28 @@ Overall, the book's implementation of string interning in the hash table provide
 *   Chapter 26 | Section 26.4.1 | Page 510
 *   Chapter 30 | Section 30.2.2 | Page 581
 
+**Metadata:**
+*   Page 350
+*   Page 359
+*   Page 367
+*   Page 369
+*   Page 370
+*   Page 371
+*   Page 508
+*   Page 577
+*   Page 577
+*   Page 581
+
+**Metrics:**
+*   Precision@10: 60.00%
+*   Recall@10: 4.72%
+*   Relevant Retrieved: 6/10
+*   Total Relevant in DB: 127
+
 ## Time
 
-*   **CrossRankingRAG:** 1.48 seconds
-*   **HnswRAG:** 1.11 seconds
+*   **CrossRankingRAG:** 1.35 seconds
+*   **HnswRAG:** 0.90 seconds
 
 ---
 
@@ -74,23 +98,15 @@ Overall, the book's implementation of string interning in the hash table provide
 ## CrossRankingRAG
 
 **Response:**
-The parsing strategies of jlox and clox differ in their approach to recognizing keywords and representing grammar rules. 
+In comparing the parsing strategies of jlox and clox, it's evident that both utilize recursive descent parsing techniques. However, the key difference lies in how they recognize keywords and represent grammar rules.
 
-In jlox, the parsing is done using a recursive descent approach. This involves defining a set of functions, each of which corresponds to a particular grammar rule. These functions consume tokens from the input stream and return a syntax tree that represents the parsed code.
+Jlox employs a more traditional approach, where each method for parsing a grammar rule produces a syntax tree for that rule and returns it to the caller. This approach involves consuming tokens, matching expected token types, and using functions for code generation.
 
-In contrast, clox uses a combination of techniques, including Pratt's parsing algorithm, to parse the grammar rules. Pratt's algorithm is a top-down parsing technique that uses a set of parsing functions to recognize the grammar rules. This approach allows for more efficient parsing and better error handling.
+On the other hand, clox uses a different approach to recognize keywords, which touches on important data structures. The parsing code in clox is more concise, with only two little instructions in the runtime, and the majority of the code is in the compiler. This suggests that clox may be using a more optimized approach, potentially leveraging predictive parsing techniques.
 
-In terms of representing grammar rules, jlox uses a more traditional approach, where each grammar rule is represented by a separate function. In clox, the grammar rules are represented using a more flexible data structure, which allows for easier modification and extension of the grammar.
+In terms of representing grammar rules, both jlox and clox use syntax trees, with Java classes available to represent them. However, clox's approach to parsing is more complex, using Pratt's technique to parse Lox's particular grammar and output the right bytecode.
 
-Overall, the parsing strategy used in clox is more efficient and flexible than the one used in jlox, and it allows for better representation of complex grammar rules. However, both approaches have their own strengths and weaknesses, and the choice of parsing strategy depends on the specific requirements of the project.
-
-It's worth noting that clox also uses predictive parsing, which can get tricky when dealing with complex grammars that require looking ahead a large number of tokens. However, the use of Pratt's algorithm and other techniques helps to mitigate this issue and provides a more efficient and effective parsing strategy. 
-
-In summary, the main differences between the parsing strategies of jlox and clox are:
-
-* jlox uses recursive descent, while clox uses a combination of techniques, including Pratt's algorithm
-* jlox represents grammar rules using separate functions, while clox uses a more flexible data structure
-* clox is more efficient and flexible than jlox, but may be more complex to implement.
+Overall, while both jlox and clox use recursive descent parsing, clox's approach is more optimized and leverages predictive parsing techniques, whereas jlox's approach is more traditional and straightforward. Clox's use of Pratt's technique and optimized compiler code suggests a more efficient parsing strategy, but may also be more complex to implement and understand.
 
 **Metadata:**
 *   Chapter 22 | Section 22.5 | Page 404
@@ -104,18 +120,26 @@ In summary, the main differences between the parsing strategies of jlox and clox
 *   Chapter 13 | Section 13.3.1 | Page 223
 *   Chapter 6 | Section 6.1 | Page 80
 
+**Metrics:**
+*   Precision@10: 60.00%
+*   Recall@10: 1.26%
+*   Relevant Retrieved: 6/10
+*   Total Relevant in DB: 478
+
 ## HnswRAG
 
 **Response:**
-The parsing strategies of jlox and clox differ in their approach to parsing and representing grammar rules. 
+The parsing strategies of jlox and clox differ in their approach to representing grammar rules and the algorithms used. 
 
-In jlox, the parsing strategy is not explicitly mentioned, but it is implied to be more complex and possibly less efficient. The text mentions that the author "cobbled together a mishmash of regular expressions and substring operations" in the past, which suggests that jlox may not have a sophisticated parsing algorithm.
+In jlox, the parsing strategy is not explicitly mentioned, but it is implied to be more complex and possibly uses a traditional recursive descent parsing or other parsing techniques like LL(k) or LR(1). 
 
-In contrast, clox uses a more elegant and efficient parsing algorithm called "top-down operator precedence parsing", also known as Pratt parsing. This algorithm is used to parse expressions and handles prefix, postfix, infix, and mixfix operators, as well as precedence and associativity. The grammar rules in clox are represented as methods inside a class, where each method corresponds to a specific grammar rule. The parser consumes a flat input sequence of tokens and uses a "current" pointer to point to the next token to be parsed.
+On the other hand, clox uses a recursive descent parsing technique, specifically "top-down operator precedence parsing" as described by Vaughan Pratt. This algorithm is used to parse expressions and handle operator precedence and associativity. 
 
-In terms of representing grammar rules, clox uses a more straightforward approach, where each grammar rule is translated directly into a Java method. This approach makes it easier to understand and maintain the parser. The text also mentions that the grammar is "dead simple" and that the translation to Java is straightforward.
+In terms of representing grammar rules, jlox uses a separate representation of the abstract syntax tree (AST) before generating code, whereas clox merges the parsing and code generation passes into one. This means that clox does not store the entire AST in memory before generating code, instead, it generates code directly from the parsed syntax. 
 
-Overall, the parsing strategy of clox is more sophisticated and efficient than that of jlox, and it uses a more elegant and scalable algorithm to represent grammar rules. The use of Pratt parsing in clox allows it to handle complex expressions and grammar rules in a more robust and maintainable way.
+Additionally, clox uses a function called `parsePrecedence()` to parse prefix expressions, which is part of the recursive descent parsing strategy. This function takes a precedence level as an argument and advances the parser to the next token. 
+
+Overall, while both jlox and clox use parsing strategies to represent grammar rules, clox's approach is more streamlined and efficient, particularly in its use of recursive descent parsing and merging of parsing and code generation passes.
 
 **Metadata:**
 *   Chapter 5 | Section 5.4 | Page 76
@@ -129,10 +153,28 @@ Overall, the parsing strategy of clox is more sophisticated and efficient than t
 *   Chapter 17 | Section 17.1 | Pages 299-300
 *   Chapter 21 | Section 21.4 | Page 386
 
+**Metadata:**
+*   Page 62
+*   Page 80
+*   Page 122
+*   Page 277
+*   Page 290
+*   Page 297
+*   Page 299
+*   Page 299
+*   Page 313
+*   Page 392
+
+**Metrics:**
+*   Precision@10: 50.00%
+*   Recall@10: 2.40%
+*   Relevant Retrieved: 5/10
+*   Total Relevant in DB: 208
+
 ## Time
 
-*   **CrossRankingRAG:** 2.08 seconds
-*   **HnswRAG:** 1.25 seconds
+*   **CrossRankingRAG:** 1.31 seconds
+*   **HnswRAG:** 1.17 seconds
 
 ---
 
@@ -141,17 +183,26 @@ Overall, the parsing strategy of clox is more sophisticated and efficient than t
 ## CrossRankingRAG
 
 **Response:**
-Jlox requires a separate 'Resolver' pass before interpretation to resolve variable references and bind them to their corresponding declarations. This is necessary to avoid coupling between the interpreter and the resolver, which can lead to subtle bugs and make the code harder to maintain.
+Jlox requires a separate 'Resolver' pass before interpretation to resolve variables and store their distances (or hops) from the current scope. This is necessary because the interpreter needs to know the scope of each variable to correctly resolve it.
 
-In the context of closures, jlox uses a concept called "distance" or "hops" to resolve variable references. When a variable is referenced inside a closure, the resolver needs to determine how many "hops" up the scope chain to look for the variable's declaration. This is done by keeping track of the distance between the variable reference and its declaration.
+In Jlox, when a variable is declared, its distance from the current scope is calculated and stored. This distance represents the number of scopes that need to be traversed to reach the variable. When a variable is accessed, the interpreter uses this distance to determine which scope to look in for the variable.
 
-The resolver uses this distance information to bind the variable reference to its declaration, which helps to fix the closure binding problem. This problem occurs when a variable is referenced inside a closure, but its declaration is outside the closure's scope. By using the distance information, the resolver can correctly bind the variable reference to its declaration, even if it's outside the closure's scope.
+The 'Resolver' pass is used to calculate and store the distances of variables from the current scope. It does this by traversing the syntax tree and visiting each node that declares or accesses a variable. For each variable, it calculates the distance from the current scope and stores this information.
 
-In terms of performance, jlox's closures are not "free" because they require allocating all environments on the heap, which can lead to a significant performance price for local variables that are never closed over. However, the use of a separate resolver pass and the distance-based approach to binding variable references helps to mitigate this performance cost by ensuring that variable references are correctly bound and resolved.
+The use of distances (or hops) helps to fix the closure binding problem. In a closure, a function has access to the variables of its surrounding scope. However, when a closure is created, the variables of the surrounding scope are not yet known. By storing the distances of variables from the current scope, the 'Resolver' pass can help the interpreter to correctly resolve variables in closures.
 
-It's worth noting that the provided text does not explicitly mention how the "distance" or "hops" are used to fix the closure binding problem, but it can be inferred that the resolver uses this information to correctly bind variable references to their declarations, which helps to resolve the closure binding problem. 
+For example, consider a function that is defined inside another function. The inner function has access to the variables of the outer function. When the inner function is created, the 'Resolver' pass calculates the distance of each variable in the outer function from the current scope. This distance is then used by the interpreter to correctly resolve the variables when the inner function is executed.
 
-In the code, this is implemented in the `visitVariableExpr()` method in `lox/Interpreter.java` and `visitFunctionStmt()` method in `lox/Resolver.java`, where the resolver and interpreter work together to resolve variable references and bind them to their declarations. The `resolveFunction()` method in `lox/Resolver.java` is also relevant, as it replaces a single line to implement the resolver pass.
+Overall, the 'Resolver' pass is an essential part of the Jlox interpreter, as it helps to resolve variables and store their distances from the current scope. This information is then used by the interpreter to correctly execute the code and resolve variables in closures. 
+
+Here's a high-level overview of how it works:
+
+1.  **Syntax Tree Traversal**: The 'Resolver' pass traverses the syntax tree, visiting each node that declares or accesses a variable.
+2.  **Distance Calculation**: For each variable, the 'Resolver' pass calculates the distance from the current scope.
+3.  **Distance Storage**: The calculated distance is stored along with the variable's information.
+4.  **Interpreter Resolution**: During interpretation, the interpreter uses the stored distances to resolve variables and access their values.
+
+By using a separate 'Resolver' pass to calculate and store variable distances, Jlox can efficiently resolve variables and execute code with closures.
 
 **Metadata:**
 *   Chapter 11 | Section 11.2 | Page 174
@@ -165,24 +216,49 @@ In the code, this is implemented in the `visitVariableExpr()` method in `lox/Int
 *   Chapter 25 | Section 25.4.4 | Page 487
 *   Chapter 11 | Section 11.4.1 | Page 184
 
+**Metrics:**
+*   Precision@10: 60.00%
+*   Recall@10: 2.47%
+*   Relevant Retrieved: 6/10
+*   Total Relevant in DB: 243
+
 ## HnswRAG
 
 **Response:**
-Jlox requires a separate 'Resolver' pass before interpretation to resolve variable bindings, which involves storing the binding between a variable and its declaration. This is necessary to minimize the collateral damage inflicted on the existing codebase and to make the most out of the existing Environment class.
+Jlox requires a separate 'Resolver' pass before interpretation to resolve variables and their scopes. This is necessary because the interpreter needs to know the scope of a variable before it can be used. The Resolver pass analyzes the code and determines the scope of each variable, which is then used by the interpreter to look up the variable's value.
 
-The 'Resolver' pass uses 'distance' (or hops) to fix the closure binding problem by storing the resolution in a way that makes the most out of the existing Environment class. When the interpreter encounters a variable, it uses the 'distance' to determine which environment in the chain will have the variable. This is done using a helper method that walks a fixed number of hops up the parent chain and returns the environment there.
+The Resolver pass uses a concept called 'distance' or 'hops' to resolve variables in nested scopes. The distance refers to the number of scopes that the Resolver needs to traverse to find the declaration of a variable. For example, in the code:
 
-The 'distance' is used to calculate the number of hops up the parent chain to reach the environment where the variable is declared. This allows the interpreter to directly access the variable in the correct environment, rather than dynamically walking the chain of enclosing environments.
+```
+fun outer() {
+  var x = 1;
+  fun middle() {
+    fun inner() {
+      print x;
+    }
+  }
+}
+```
 
-In the context of closures, the 'Resolver' pass is essential to handle cases where a closure accesses a variable declared in an outer function. By storing the 'distance' to the variable, the interpreter can correctly resolve the variable binding, even when the closure is created and the outer function has returned.
+The variable 'x' is declared in the 'outer' scope, which is two scopes away from the 'inner' scope where it is used. The Resolver would record a distance of 2 to indicate that the variable 'x' is declared two scopes away.
 
-The use of 'distance' (or hops) in jlox helps to:
+When the interpreter encounters a variable, it uses the distance recorded by the Resolver to look up the variable's value in the correct scope. This ensures that the interpreter can correctly resolve variables in nested scopes and handle closures that capture variables from outer scopes.
 
-1. Avoid dynamic walking of the environment chain, which can lead to runtime errors if the variable is not defined.
-2. Enable the interpreter to directly access the variable in the correct environment, making the code more efficient.
-3. Handle closures that access variables declared in outer functions, which is essential for supporting first-class functions in the Lox language.
+In the context of closures, the Resolver's use of distance helps to fix the closure binding problem by ensuring that the closure captures the correct variable from the outer scope. For example, in the code:
 
-Overall, the 'Resolver' pass in jlox plays a crucial role in resolving variable bindings and handling closures, allowing the interpreter to correctly execute the code and provide a more efficient and robust implementation.
+```
+fun makeClosure() {
+  var local = "local";
+  fun closure() {
+    print local;
+  }
+  return closure;
+}
+```
+
+The Resolver would record a distance of 1 to indicate that the variable 'local' is declared one scope away from the 'closure' scope. When the closure is called, the interpreter would use this distance to look up the variable 'local' in the correct scope, ensuring that the closure captures the correct variable.
+
+By using distance to resolve variables, the Resolver pass helps to ensure that the interpreter can correctly handle nested scopes and closures, which is essential for implementing a programming language like Lox.
 
 **Metadata:**
 *   Chapter 11 | Section 11.1.2 | Page 173
@@ -196,9 +272,27 @@ Overall, the 'Resolver' pass in jlox plays a crucial role in resolving variable 
 *   Chapter 28 | Section 28.1.3 | Page 537
 *   Chapter 28 | Section 28.2.3 | Page 542
 
+**Metadata:**
+*   Page 184
+*   Page 184
+*   Page 188
+*   Page 392
+*   Page 402
+*   Page 457
+*   Page 457
+*   Page 468
+*   Page 487
+*   Page 542
+
+**Metrics:**
+*   Precision@10: 30.00%
+*   Recall@10: 4.41%
+*   Relevant Retrieved: 3/10
+*   Total Relevant in DB: 68
+
 ## Time
 
-*   **CrossRankingRAG:** 1.94 seconds
-*   **HnswRAG:** 1.42 seconds
+*   **CrossRankingRAG:** 1.92 seconds
+*   **HnswRAG:** 1.46 seconds
 
 ---
