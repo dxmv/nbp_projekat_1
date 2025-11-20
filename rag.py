@@ -78,11 +78,9 @@ class CrossRankingRAG:
         def retrieve(self, query: str, top_k: int = 5) -> Dict:
                 # nadjemo vise kandidata
                 query_emb = self.embedding_model.encode([query]).astype('float32')
-                # Adjust candidate count based on index size
                 candidate_count = min(len(self.doc_id_mapping), max(top_k * 3, top_k + 5))
                 distances, indices = self.index.search(query_emb, candidate_count)
                 
-                # Remove duplicates while preserving order
                 doc_ids = []
                 seen = set()
                 for i in indices[0]:

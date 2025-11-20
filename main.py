@@ -12,7 +12,6 @@ MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
 
-# Defined with Ground Truth data (Chapters for Semantic RAG, Page Ranges for HNSW)
 QUESTIONS = [
     {
         "query": "How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?",
@@ -115,7 +114,6 @@ def load_pdf_into_rags():
         return hnsw_rag, crossranking_rag
 
 def format_metadata(metadata: dict, is_hnsw: bool = False) -> str:
-        """Format metadata for display."""
         parts = []
         if is_hnsw:
              if metadata.get('page_start'):
@@ -135,7 +133,6 @@ def format_metadata(metadata: dict, is_hnsw: bool = False) -> str:
 def calculate_metrics(rag, retrieved_metadatas, relevant_chapters, relevant_pages, is_hnsw=False):
         relevant_retrieved = 0
         
-        # Helper check for pages
         def is_page_relevant(page_val):
                 p = int(page_val)
                 for start, end in relevant_pages:
