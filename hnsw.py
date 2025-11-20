@@ -3,7 +3,7 @@ RAG sa:
 
 HNSW indexom
 Vektorima velikih dimenzija
-Sementicnim chunkingom 
+fixed size chunkingom
 Celobrojnom kvantizacijom
 '''
 
@@ -38,26 +38,35 @@ class HnswRAG:
                 if ids is None:
                         ids = [str(i) for i in range(len(documents))]
                 
-                # size batcha za chroma db je 5000
-                batch_size = 5000
+                batch_size = 64
                 total_docs = len(documents)
                 
-                for i in range(0, total_docs, batch_size):
-                        end_idx = min(i + batch_size, total_docs)
+                print(f"Encoding {total_docs} documents in batches of {batch_size}...")
+                
+                all_embeddings = self.embedding_model.encode(
+                    documents,
+                    batch_size=batch_size,
+                    show_progress_bar=True,
+                    convert_to_numpy=True,
+                    normalize_embeddings=True
+                )
+
+                # size batcha za chroma db je 5000
+                chroma_batch_size = 5000
+                for i in range(0, total_docs, chroma_batch_size):
+                        end_idx = min(i + chroma_batch_size, total_docs)
                         batch_docs = documents[i:end_idx]
                         batch_ids = ids[i:end_idx]
                         batch_metadatas = metadatas[i:end_idx] if metadatas else None
-                        
-                        # embedding za batch
-                        embeddings = self.embedding_model.encode(batch_docs).tolist()
+                        batch_embeddings = all_embeddings[i:end_idx].tolist()
                         
                         if batch_metadatas:
-                                self.collection.add(documents=batch_docs, embeddings=embeddings, 
+                                self.collection.add(documents=batch_docs, embeddings=batch_embeddings, 
                                                   ids=batch_ids, metadatas=batch_metadatas)
                         else:
-                                self.collection.add(documents=batch_docs, embeddings=embeddings, ids=batch_ids)
+                                self.collection.add(documents=batch_docs, embeddings=batch_embeddings, ids=batch_ids)
                         
-                        print(f"Added batch {i//batch_size + 1}: {len(batch_docs)} documents")
+                        print(f"Added batch {i//chroma_batch_size + 1}: {len(batch_docs)} documents to ChromaDB")
                 
                 print(f"Finished: Added {len(documents)} documents to ChromaDB")
 
@@ -68,11 +77,9 @@ class HnswRAG:
                 # svi dokumenti iz chroma db
                 results = self.collection.get(include=['embeddings', 'documents'])
         
-                # ako nema embeddinga odmah return
                 if results['embeddings'] is None or len(results['embeddings']) == 0:
                         print("No embeddings in ChromaDB yet")
                         return
-                # numpy array
                 embeddings = np.array(results['embeddings']).astype('float32')
                 
                 # M = 32 (broj linkova po čvoru)

@@ -12,10 +12,9 @@ MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
 QUESTIONS = [
-        # "List all types of expressions and statements in Lox",
         # "Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?",
         # "How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?",
-        "Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?"
+        "Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?" 
 ]
 
 
@@ -53,9 +52,9 @@ def load_pdf_into_rags():
         print("Extracting paragraphs...")
         paragraphs = parser.extract_paragraphs()
         print(f"Found {len(paragraphs)} paragraphs")
-        print("Extracting large chunks...")
-        large_chunks = parser.extract_large_chunks()
-        print(f"Found {len(large_chunks)} large chunks")
+        print("Extracting fixed size chunks...")
+        large_chunks = parser.extract_fixed_size_chunks()
+        print(f"Found {len(large_chunks)} fixed chunks")
         
         # dodajemo paragrafe u crossranking rag
         if len(paragraphs) > 0 and crossranking_count == 0:
@@ -101,20 +100,24 @@ def load_pdf_into_rags():
         
         return hnsw_rag, crossranking_rag
 
-def format_metadata(metadata: dict) -> str:
+def format_metadata(metadata: dict, is_hnsw: bool = False) -> str:
         """Format metadata for display."""
         parts = []
-        if metadata.get('chapter'):
-                parts.append(f"Chapter {metadata['chapter']}")
-        if metadata.get('subchapter'):
-                parts.append(f"Section {metadata['subchapter']}")
-        if metadata.get('title'):
-                parts.append(f"'{metadata['title']}'")
-        if metadata.get('page_start'):
-                if metadata.get('page_end') and metadata['page_start'] != metadata['page_end']:
-                        parts.append(f"Pages {metadata['page_start']}-{metadata['page_end']}")
-                else:
-                        parts.append(f"Page {metadata['page_start']}")
+        if is_hnsw:
+             if metadata.get('page_start'):
+                    parts.append(f"Page {metadata['page_start']}")
+        else:
+            if metadata.get('chapter'):
+                    parts.append(f"Chapter {metadata['chapter']}")
+            if metadata.get('subchapter'):
+                    parts.append(f"Section {metadata['subchapter']}")
+            if metadata.get('title'):
+                    parts.append(f"'{metadata['title']}'")
+            if metadata.get('page_start'):
+                    if metadata.get('page_end') and metadata['page_start'] != metadata['page_end']:
+                            parts.append(f"Pages {metadata['page_start']}-{metadata['page_end']}")
+                    else:
+                            parts.append(f"Page {metadata['page_start']}")
         return " | ".join(parts)
 
 def query_rag(rag, query: str, top_k: int = 10):
@@ -126,8 +129,9 @@ def query_rag(rag, query: str, top_k: int = 10):
         # queryujemo LLM
         response = generate_response(query, results['documents'])
         print(f"Response: {response}")
+        is_hnsw = isinstance(rag, HnswRAG)
         for i, metadata in enumerate(results['metadatas']):
-                print(f"  Metadata: {format_metadata(metadata)}")
+                print(f"  Metadata: {format_metadata(metadata, is_hnsw)}")
         end_time = time.time()
         print(f"Time taken: {end_time - start_time:.2f} seconds")
         print("="*80)

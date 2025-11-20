@@ -6,6 +6,7 @@ Uses the unstructured library for better document structure detection.
 from typing import List, Dict
 from unstructured.partition.pdf import partition_pdf
 from unstructured.documents.elements import Title, NarrativeText, Text
+from unstructured.chunking.basic import chunk_elements
 import re
 
 MIN_PARAGRAPH_LENGTH = 50
@@ -23,42 +24,36 @@ class PDFParser:
             include_page_breaks=True
         )
         print(f"Total elements from PDF: {len(self.elements)}")
-        
-    def extract_large_chunks(self) -> List[Dict]:
-        """
-        Korsiti paragrafe od donje funkcije i kombinuj ih u chunkove od 4 paragrafa
-        """
-        # svi paragrafi
-        paragraphs = self.extract_paragraphs()
-        
-        large_chunks = []
-        i = 0
-        
-        while i < len(paragraphs):
-            # n sledecih paragrafa
-            chunk_paras = paragraphs[i:i + CHUNK_SIZE]
-            
-            combined_content = ' '.join([p['content'] for p in chunk_paras])
-            
-            # metadata prvog paragrafa u chunku
-            first_para = chunk_paras[0]
-            last_para = chunk_paras[-1]
-            
-            chunk_data = {
-                'content': combined_content,
-                'chapter': first_para['chapter'],
-                'chapter_number': first_para['chapter_number'],
-                'subchapter': first_para.get('subchapter', ''),
-                'page_start': first_para['page_start'],
-                'page_end': last_para['page_end'],
-                'num_paragraphs': len(chunk_paras)
-            }
-            
-            large_chunks.append(chunk_data)
-            i += CHUNK_SIZE
-        
-        return large_chunks
     
+    
+    def extract_fixed_size_chunks(self, chunk_size: int = 512, overlap: int = 64) -> List[Dict]:
+        """
+        Extracts fixed-size text chunks from the PDF elements using unstructured library.
+        """
+        chunks = chunk_elements(self.elements, max_characters=chunk_size, new_after_n_chars=chunk_size, overlap=overlap)
+        
+        formatted_chunks = []
+        
+        for chunk in chunks:
+            metadata = chunk.metadata.to_dict() if hasattr(chunk, 'metadata') else {}
+            
+            chapter = "0"
+            chapter_number = "0"
+            subchapter = ""
+            page_start = metadata.get('page_number', 1)
+            
+            
+            formatted_chunks.append({
+                'content': str(chunk),
+                'chapter': str(chapter),
+                'chapter_number': str(chapter_number),
+                'subchapter': subchapter,
+                'page_start': page_start,
+                'page_end': page_start # chunk je uglavnom na jednom pageu
+            })
+            
+        return formatted_chunks
+
     def extract_paragraphs(self) -> List[Dict]:
         """
         Uzima paragrafe iz PDFa

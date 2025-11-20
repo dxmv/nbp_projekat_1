@@ -3,8 +3,8 @@ RAG sa:
 
 IndexFlatL2 indexom
 Vektorima malih dimenzija 384
-Chunkovima od 512 karaktera
-Popnovinim orderovanjem/cross encodingom
+semanticnim chunkingom
+re-rankingom/cross encodingom
 '''
 from chromadb.config import Settings
 import chromadb

@@ -1,6 +1,12 @@
 # Poredjenje
 
-**Query:** *"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"*
+## Gde se tacno nalaze rezultati?
+
+**"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"** - 
+
+*"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"* - Chapter 20, sekcija 5/
+
+*"Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?"* - Chapter 11, sekcije 3,4,5/
 
 ## CrossRankingRAG
 
