@@ -2,13 +2,17 @@
 
 ## Gde se tacno nalaze rezultati?
 
-**"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"** - 
 
-*"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"* - Chapter 20, sekcija 5/
 
-*"Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?"* - Chapter 11, sekcije 3,4,5/
+*"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"* - Chapter 20 / Page 349-373
+
+*"Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?"* - Chapter 11 / Page 175-190
+
+*"Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?"* - Chapteri 6,17 / Page 76-94 & Page 297-318
 
 ## CrossRankingRAG
+
+**Query**:*"How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?"*
 
 **Response:**
 The book implements string interning in the hash table by using a sister function to `findEntry()`, called `tableFindString()`, which performs a hash table lookup for interning strings. This is done by using the `capacity` as a mask when wrapping the string's hash key.

@@ -11,10 +11,24 @@ API_KEY = os.environ.get("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
+
+# Defined with Ground Truth data (Chapters for Semantic RAG, Page Ranges for HNSW)
 QUESTIONS = [
-        # "Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?",
-        # "How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?",
-        "Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?" 
+    {
+        "query": "How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?",
+        "relevant_chapters": [20],
+        "relevant_pages": [[349, 373]]
+    },
+    {
+        "query": "Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?",
+        "relevant_chapters": [6, 17],
+        "relevant_pages": [[76, 94], [297, 318]]
+    },
+    {
+        "query": "Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?",
+        "relevant_chapters": [11],
+        "relevant_pages": [[175, 190]]
+    }
 ]
 
 
@@ -111,8 +125,6 @@ def format_metadata(metadata: dict, is_hnsw: bool = False) -> str:
                     parts.append(f"Chapter {metadata['chapter']}")
             if metadata.get('subchapter'):
                     parts.append(f"Section {metadata['subchapter']}")
-            if metadata.get('title'):
-                    parts.append(f"'{metadata['title']}'")
             if metadata.get('page_start'):
                     if metadata.get('page_end') and metadata['page_start'] != metadata['page_end']:
                             parts.append(f"Pages {metadata['page_start']}-{metadata['page_end']}")
@@ -120,8 +132,58 @@ def format_metadata(metadata: dict, is_hnsw: bool = False) -> str:
                             parts.append(f"Page {metadata['page_start']}")
         return " | ".join(parts)
 
-def query_rag(rag, query: str, top_k: int = 10):
-        start_time = time.time() # za merenje vremena
+def calculate_metrics(rag, retrieved_metadatas, relevant_chapters, relevant_pages, is_hnsw=False):
+        relevant_retrieved = 0
+        
+        # Helper check for pages
+        def is_page_relevant(page_val):
+                p = int(page_val)
+                for start, end in relevant_pages:
+                        if start <= p <= end:
+                                return True
+                return False
+
+        for meta in retrieved_metadatas:
+                if is_hnsw:
+                        if is_page_relevant(meta.get('page_start')):
+                                relevant_retrieved += 1
+                else:
+                        try:
+                                if int(meta.get('chapter')) in relevant_chapters:
+                                        relevant_retrieved += 1
+                        except (ValueError, TypeError):
+                                pass
+                        
+        k = len(retrieved_metadatas)
+        precision = relevant_retrieved / k if k > 0 else 0
+        
+        try:
+                all_metadatas = rag.collection.get(include=['metadatas'])['metadatas']
+                total_relevant = 0
+                for meta in all_metadatas:
+                        if is_hnsw:
+                                if is_page_relevant(meta.get('page_start')):
+                                        total_relevant += 1
+                        else:
+                                try:
+                                        if int(meta.get('chapter')) in relevant_chapters:
+                                                total_relevant += 1
+                                except (ValueError, TypeError):
+                                        pass
+        except Exception as e:
+                print(f"Error calculating recall denominator: {e}")
+                total_relevant = 0
+                
+        recall = relevant_retrieved / total_relevant if total_relevant > 0 else 0
+        
+        return precision, recall, relevant_retrieved, total_relevant
+
+def query_rag(rag, query_item: dict, top_k: int = 10):
+        query = query_item["query"]
+        relevant_chapters = query_item.get("relevant_chapters", [])
+        relevant_pages = query_item.get("relevant_pages", [])
+
+        start_time = time.time() 
         print("="*80)
         print(f"QUERY: {query} for {rag.__class__.__name__}")
         results = rag.retrieve(query, top_k=top_k)
@@ -129,9 +191,28 @@ def query_rag(rag, query: str, top_k: int = 10):
         # queryujemo LLM
         response = generate_response(query, results['documents'])
         print(f"Response: {response}")
+        
         is_hnsw = isinstance(rag, HnswRAG)
         for i, metadata in enumerate(results['metadatas']):
                 print(f"  Metadata: {format_metadata(metadata, is_hnsw)}")
+        
+        # Metrics
+        if relevant_chapters or relevant_pages:
+                p, r, rel_ret, total_rel = calculate_metrics(
+                        rag, 
+                        results['metadatas'], 
+                        relevant_chapters, 
+                        relevant_pages, 
+                        is_hnsw
+                )
+                print("-" * 40)
+                print(f"METRICS ({'Pages' if is_hnsw else 'Chapters'} Check)")
+                print(f"Precision@{top_k}: {p:.2%}")
+                print(f"Recall@{top_k}:    {r:.2%}")
+                print(f"Relevant Retrieved: {rel_ret}/{len(results['metadatas'])}")
+                print(f"Total Relevant in DB: {total_rel}")
+                print("-" * 40)
+
         end_time = time.time()
         print(f"Time taken: {end_time - start_time:.2f} seconds")
         print("="*80)
@@ -141,10 +222,10 @@ def main():
         # dodamo pdf u oba raga
         hnsw_rag, crossranking_rag = load_pdf_into_rags()
         
-        for i, query in enumerate(QUESTIONS):
-                print(f"\n{i+1}. Processing Query: {query}")
-                query_rag(crossranking_rag, query)
-                query_rag(hnsw_rag, query)
+        for i, query_item in enumerate(QUESTIONS):
+                print(f"\n{i+1}. Processing Query: {query_item['query']}")
+                query_rag(crossranking_rag, query_item)
+                query_rag(hnsw_rag, query_item)
                 
 
 if __name__ == "__main__":
