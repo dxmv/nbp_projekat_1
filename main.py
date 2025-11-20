@@ -1,18 +1,23 @@
 import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import time
 from rag import CrossRankingRAG
 from hnsw import HnswRAG
 from pdf_parser import PDFParser
 from groq import Groq
 
+
 API_KEY = os.environ.get("GROQ_API_KEY")
 MODEL = "llama-3.3-70b-versatile"
 PDF_PATH = "data/crafting-interpreters.pdf"
 DIVIDE = 80
 QUESTIONS = [
-        # "List all types of expressions and statements in jlox",
-        "Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?"
+        # "List all types of expressions and statements in Lox",
+        # "Compare the parsing strategies of jlox and clox: which algorithms are used and how do they represent grammar rules?",
+        # "How does the book implement string interning in the hash table, and what performance benefits does this optimization provide?",
+        "Why does jlox require a separate 'Resolver' pass before interpretation, and how does it use 'distance' (or hops) to fix the closure binding problem?"
 ]
+
 
 def generate_response(query: str, context: str) -> str:
         prompt = f"""
